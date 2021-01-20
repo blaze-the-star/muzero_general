@@ -77,9 +77,11 @@ class SelfPlay:
                         ),
                     }
                 )
+                #print(f"muzero_reward: {self.config.players}, {self.config.muzero_player}, {len(game_history.reward_history)}")
                 if 1 < len(self.config.players):
                     shared_storage.set_info.remote(
                         {
+                            
                             "muzero_reward": sum(
                                 reward
                                 for i, reward in enumerate(game_history.reward_history)
