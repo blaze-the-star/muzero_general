@@ -29,7 +29,7 @@ class MuZeroConfig:
         self.observation_shape = (3, 250, 200)  # Dimensions of the game observation, must be 3D (channel, height, width). For a 1D array, please reshape it to (1, 1, length of array)
         self.action_space = list(range(50))  # Fixed list of all possible actions. You should only edit the length
         self.players = list(range(2))  # List of players. You should only edit the length
-        self.stacked_observations = 12  # Number of previous observations and previous actions to add to the current observation
+        self.stacked_observations = 0  # Number of previous observations and previous actions to add to the current observation
 
         # Evaluate
         self.muzero_player = 0  # Turn Muzero begins to play (0: MuZero plays first, 1: MuZero plays second)
@@ -83,8 +83,8 @@ class MuZeroConfig:
         #self.results_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "/tmp/results", os.path.basename(__file__)[:-3], datetime.datetime.now().strftime("%Y-%m-%d--%H-%M-%S"))  # Path to store the model weights and TensorBoard logs
         self.results_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../results", os.path.basename(__file__)[:-3], datetime.datetime.now().strftime("%Y-%m-%d--%H-%M-%S"))  # Path to store the model weights and TensorBoard logs
         self.save_model = True      # Save the checkpoint in results_path as model.checkpoint
-        self.training_steps = 10800  # Total number of training steps (ie weights update according to a batch)
-        self.batch_size = 12       # Number of parts of games to train on at each training step (~ 6.1GB GPU_RAM )
+        self.training_steps = 108000  # Total number of training steps (ie weights update according to a batch)
+        self.batch_size = 120       # Number of parts of games to train on at each training step (~ 6.1GB GPU_RAM )
         #self.batch_size = 50       # Number of parts of games to train on at each training step (~ 6.1GB GPU_RAM )
         #self.batch_size = 150       # Number of parts of games to train on at each training step  (over 9.8GB GPU_RAM needed)
         self.checkpoint_interval = 10   # Number of training steps before using the model for self-playing
@@ -101,11 +101,11 @@ class MuZeroConfig:
         self.lr_decay_steps = 100
 
         ### Replay Buffer
-        self.replay_buffer_size = 20  # Number of self-play games to keep in the replay buffer
-        self.num_unroll_steps = 40  # Number of game moves to keep for every batch element
-        self.td_steps = 20  # Number of steps in the future to take into account for calculating the target value
+        self.replay_buffer_size = 35  # Number of self-play games to keep in the replay buffer
+        self.num_unroll_steps = 55  # Number of game moves to keep for every batch element
+        self.td_steps = 24  # Number of steps in the future to take into account for calculating the target value
         self.PER = False  # Prioritized Replay (See paper appendix Training), select in priority the elements in the replay buffer which are unexpected for the network
-        self.PER_alpha = 1  # How much prioritization is used, 0 corresponding to the uniform case, paper suggests 1
+        self.PER_alpha = .8  # How much prioritization is used, 0 corresponding to the uniform case, paper suggests 1
 
         # Reanalyze (See paper appendix Reanalyse)
         self.use_last_model_value = True  # Use the last model to provide a fresher, stable n-step value (See paper appendix Reanalyze)
@@ -347,7 +347,7 @@ class NFP():
 
 no_op_count = 0        
 class FrameWorker(Thread):
-    def __init__(self, machine, port, sleep_sec=.1, start_paused=False):
+    def __init__(self, machine, port, sleep_sec=.1, start_paused=False, start_delay=10):
         super().__init__()
         self.nfp = NFP(machine, port)
         self._sleep_ms = sleep_sec
@@ -355,6 +355,7 @@ class FrameWorker(Thread):
         self._pause = start_paused
         self.ticks = 0
         self.move_counter =0
+        self.start_delay = start_delay
     @property
     def is_running(self):
         return self._running
@@ -383,6 +384,7 @@ class FrameWorker(Thread):
     def run(self):
         self._running = True
         global no_op_count
+        time.sleep(self.start_delay)
         while self._running:
             
             #if no_op_count > 500: 
@@ -418,7 +420,8 @@ class GameRunner(Thread):
         with open(f'log_{self.ident}.log', 'a')  as log:
             print(f"Running {self.path} on port {self.port}")
             self.process = subprocess.Popen([self.path, f"-m={self.port}", "-p=2"], stderr=log, stdout=log)
-            print(f"Game shutdown on port {self.port}")
+            #print(f"Game shutdown on port {self.port}")
+    
 
 
 class Game(AbstractGame):
@@ -549,8 +552,8 @@ class Game(AbstractGame):
         """
         Properly close the game.
         """
-        self.nfp_game.__exit__()
         self.frame_worker.stop()
+        self.nfp_game.__exit__()
         print('Stopping game.')
         #message = Commands.FINISH
         
