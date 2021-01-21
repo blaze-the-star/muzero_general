@@ -79,21 +79,22 @@ class SelfPlay:
                 )
                 #print(f"muzero_reward: {self.config.players}, {self.config.muzero_player}, {len(game_history.reward_history)}")
                 if 1 < len(self.config.players):
+                    muzero_reward = sum(
+                        reward
+                        for i, reward in enumerate(game_history.reward_history)
+                        if i > 0 and game_history.to_play_history[i - 1]
+                        == self.config.muzero_player
+                    )
+                    opponent_reward = sum(
+                        reward
+                        for i, reward in enumerate(game_history.reward_history)
+                        if i > 0 and game_history.to_play_history[i - 1]
+                        != self.config.muzero_player
+                    )
                     shared_storage.set_info.remote(
                         {
-                            
-                            "muzero_reward": sum(
-                                reward
-                                for i, reward in enumerate(game_history.reward_history)
-                                if i > 0 and game_history.to_play_history[i - 1]
-                                == self.config.muzero_player
-                            ),
-                            "opponent_reward": sum(
-                                reward
-                                for i, reward in enumerate(game_history.reward_history)
-                                if i > 0 and game_history.to_play_history[i - 1]
-                                != self.config.muzero_player
-                            ),
+                            "muzero_reward": muzero_reward - opponent_reward,
+                            "opponent_reward": opponent_reward - muzero_reward,
                         }
                     )
 
@@ -167,7 +168,7 @@ class SelfPlay:
                         or len(game_history.action_history) < temperature_threshold
                         else 0,
                     )
-                    if len(game_history.action_history) <= action and temperature > 0:
+                    if len(game_history.action_history) <= random_move_till_n_action and temperature > 0:
                         action = numpy.random.choice(self.game.legal_actions())
 
                     if render:
