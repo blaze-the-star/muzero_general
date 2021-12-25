@@ -91,3 +91,14 @@ venv.bak/
 .mypy_cache/
 .dmypy.json
 dmypy.json
+games/neon_force_pusher.py
+
+# Logs
+log_*.log
+
+# Godot Games
+*.x86_64
+*.pck
+
+# Training
+results/

@@ -23,12 +23,12 @@ class MuZeroConfig:
         # More information is available here: https://github.com/werner-duvaud/muzero-general/wiki/Hyperparameter-Optimization
 
         self.seed = 0  # Seed for numpy, torch and the game
-        self.max_num_gpus = None  # Fix the maximum number of GPUs to use. It's usually faster to use a single GPU (set it to 1) if it has enough memory. None will use every GPUs available
+        self.max_num_gpus = 0  # Fix the maximum number of GPUs to use. It's usually faster to use a single GPU (set it to 1) if it has enough memory. None will use every GPUs available
 
         ### Game
-        self.observation_shape = (3, 250, 200)  # Dimensions of the game observation, must be 3D (channel, height, width). For a 1D array, please reshape it to (1, 1, length of array)
+        self.observation_shape = (1, 40, 40)  # Dimensions of the game observation, must be 3D (channel, height, width). For a 1D array, please reshape it to (1, 1, length of array)
         self.action_space = list(range(50))  # Fixed list of all possible actions. You should only edit the length
-        self.players = list(range(2))  # List of players. You should only edit the length
+        self.players = list(range(1))  # List of players. You should only edit the length
         self.stacked_observations = 0  # Number of previous observations and previous actions to add to the current observation
 
         # Evaluate
@@ -56,13 +56,13 @@ class MuZeroConfig:
         self.pb_c_init = 1.25
 
         ### Network
-        self.network = "resnet"  # "resnet" / "fullyconnected"
+        self.network = "fullyconnected"  # "resnet" / "fullyconnected"
         self.support_size = 30  # Value and reward are scaled (with almost sqrt) and encoded on a vector with a range of -support_size to support_size. Choose it so that support_size <= sqrt(max(abs(discounted reward)))
         
         # Residual Network
         self.downsample = "CNN"  # Downsample observations before representation network, False / "CNN" (lighter) / "resnet" (See paper appendix Network Architecture)
-        self.blocks = 32  # Number of blocks in the ResNet
-        self.channels = 3  # Number of channels in the ResNet
+        self.blocks = 16  # Number of blocks in the ResNet
+        self.channels = 1  # Number of channels in the ResNet
         self.reduced_channels_reward = 6  # Number of channels in reward head
         self.reduced_channels_value = 6  # Number of channels in value head
         self.reduced_channels_policy = 6  # Number of channels in policy head
@@ -72,24 +72,24 @@ class MuZeroConfig:
 
         # Fully Connected Network
         self.encoding_size = 3
-        self.fc_representation_layers = [128]  # Define the hidden layers in the representation network
-        self.fc_dynamics_layers = [128]  # Define the hidden layers in the dynamics network
-        self.fc_reward_layers = [128]  # Define the hidden layers in the reward network
-        self.fc_value_layers = [128]  # Define the hidden layers in the value network
-        self.fc_policy_layers = [128]  # Define the hidden layers in the policy network
+        self.fc_representation_layers = [64]  # Define the hidden layers in the representation network
+        self.fc_dynamics_layers = [64]  # Define the hidden layers in the dynamics network
+        self.fc_reward_layers = [64]  # Define the hidden layers in the reward network
+        self.fc_value_layers = [64]  # Define the hidden layers in the value network
+        self.fc_policy_layers = [64]  # Define the hidden layers in the policy network
 
 
         ### Training
         #self.results_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "/tmp/results", os.path.basename(__file__)[:-3], datetime.datetime.now().strftime("%Y-%m-%d--%H-%M-%S"))  # Path to store the model weights and TensorBoard logs
         self.results_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../results", os.path.basename(__file__)[:-3], datetime.datetime.now().strftime("%Y-%m-%d--%H-%M-%S"))  # Path to store the model weights and TensorBoard logs
         self.save_model = True      # Save the checkpoint in results_path as model.checkpoint
-        self.training_steps = 108000  # Total number of training steps (ie weights update according to a batch)
+        self.training_steps = 100000  # Total number of training steps (ie weights update according to a batch)
         self.batch_size = 120       # Number of parts of games to train on at each training step (~ 6.1GB GPU_RAM )
         #self.batch_size = 50       # Number of parts of games to train on at each training step (~ 6.1GB GPU_RAM )
         #self.batch_size = 150       # Number of parts of games to train on at each training step  (over 9.8GB GPU_RAM needed)
         self.checkpoint_interval = 10   # Number of training steps before using the model for self-playing
         self.value_loss_weight = .25    # Scale the value loss to avoid overfitting of the value function, paper recommends 0.25 (See paper appendix Reanalyze)
-        self.train_on_gpu = True # torch.cuda.is_available()  # Train on GPU if available
+        self.train_on_gpu = False # torch.cuda.is_available()  # Train on GPU if available
 
         self.optimizer = "Adam"  # "Adam" or "SGD". Paper uses SGD
         self.weight_decay = 1e-6  # L2 weights regularization
@@ -109,11 +109,11 @@ class MuZeroConfig:
 
         # Reanalyze (See paper appendix Reanalyse)
         self.use_last_model_value = True  # Use the last model to provide a fresher, stable n-step value (See paper appendix Reanalyze)
-        self.reanalyse_on_gpu = True
+        self.reanalyse_on_gpu = False
 
         ### Adjust the self play / training ratio to avoid over/underfitting
-        self.self_play_delay = 0  # Number of seconds to wait after each played game
-        self.training_delay = 0  # Number of seconds to wait after each training step
+        self.self_play_delay = 1  # Number of seconds to wait after each played game
+        self.training_delay = 1  # Number of seconds to wait after each training step
         self.ratio = .1  # Desired training steps per self played step ratio. Equivalent to a synchronous version, training can take much longer. Set it to None to disable it
 
 
@@ -138,12 +138,13 @@ class Commands(IntEnum):
     GET_STATE = 2
     GET_ACTIONS = 3
     GET_REWARD = 4
-    ADVANCE_FRAME = 5
+    _SPAM = 5 # Previously was ADVANCE_FRAME, but someone was spamming it.
     RESET = 6
     FINISH = 7
     SET_INPUT = 8
     SET_PLAYER = 9
     GET_LEVEL_SELECT_ACTIONS = 10
+    ADVANCE_FRAME = 11
 
 
 class NFP():
@@ -157,13 +158,9 @@ class NFP():
         self.player_score = {0:0,1:0}
     
     def __enter__(self):
-        #self.connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        #self.connection.connect((self.machine, self.port))
         return self
     
     def __exit__(self):
-        #print(str(type), str(value), str(traceback))
-        #self.connection.close()
         self.send_cmd(Commands.FINISH)
 
     def get_text(self, commands):
@@ -217,7 +214,6 @@ class NFP():
         except Exception as err:
             print(f"{err}")
             
-            #self._is_done = False
         finally:
             self.connection.close()
         
@@ -240,34 +236,35 @@ class NFP():
             self.connection.close()
 
     def get_state(self):
+        img_w = 40
+        img_h = 40
+        img_depth = 1
         got_data = False
         while not got_data:
             try:
                 self.connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self.connection.connect((self.machine, self.port))
                 self.connection.send(bytes([int(Commands.GET_STATE)])) # get_image
-                #np_data = numpy.zeros((3,250*200))
                 
                 l_data = []
-                data = self.connection.recv(250*200)
+                data = self.connection.recv(img_w*img_h)
                 while data:
                     l_data.extend(list(data))
-                    data = self.connection.recv(250*200)
-                if len(l_data) == 250*200*3:
-                    #i = Image.frombytes("RGB", (250,200), data)
+                    data = self.connection.recv(img_w*img_h)
+                if len(l_data) == img_w*img_h*img_depth:
                     self.data = numpy.array(l_data)
-                    self.data = numpy.reshape(self.data, (3, 250,200))
-                    if self.data.shape == (3,250,200):
+                    self.data = numpy.reshape(self.data, (img_depth, img_w,img_h))
+                    if self.data.shape == (img_depth,img_w,img_h):
                         got_data = True
                         self.connection.close()
                         return self.data
                 if not got_data:
                     print("stuck on get_state because no valid image.")
-            #return numpy.zeros((3,250,200))
             except Exception as err :
                 got_data= False
                 print(f"Connection to {self.machine}:{self.port} failed error (get_state) retry in 10sec... {str(err)}")
                 time.sleep(10.0)
+
 
     def get_bytes(self, command: Commands, expected_bytes=1000):
         got_data = False
@@ -318,15 +315,11 @@ class NFP():
         self._is_done=True
         for k, v in self.player_deaths.items():
             self.player_score[k] = self.player_score[k] - (100 * v)
-        #print(f"FINAL_SCORE: {self.player_score}, DEATHS: {self.player_deaths}")
         for k in self.player_deaths.keys():
             self.player_deaths[k] = 0
         for k in self.player_score.keys():
             self.player_score[k] = 0
-        #print("LEVEL DONE")
-        #self.reset()
 
-        #choose_level = random.choice( self.get_level_select_actions())
         choose_level = self.get_level_select_actions()[0]
         if choose_level:
             self.send_cmd(Commands.SET_INPUT, [choose_level])
@@ -344,6 +337,8 @@ class NFP():
 
     def set_player(self, id):
         self.send_cmd(Commands.SET_PLAYER, [id])
+        if id == 0:
+            self.advance_frame()
 
 no_op_count = 0        
 class FrameWorker(Thread):
@@ -365,13 +360,9 @@ class FrameWorker(Thread):
         return self._pause
 
     def pause(self):
-        #print("paused")
         self._pause = True
 
     def un_pause(self):
-        
-        #self.move_counter = 0
-        #self.ticks = 0
         self._pause = False
 
     def reset(self):
@@ -387,14 +378,10 @@ class FrameWorker(Thread):
         time.sleep(self.start_delay)
         while self._running:
             
-            #if no_op_count > 500: 
-            #    print("No_op_count {no_op_count}, pausing...")
-            #    self._pause =True
             if self._pause:
                 time.sleep(self._sleep_ms * 10)
                 self._pause = False
             if not self._pause:
-                self.nfp.advance_frame()
                 self.ticks += 1
                 time.sleep(self._sleep_ms)
             no_op_count +=1
@@ -408,7 +395,7 @@ class GameRunner(Thread):
     def __init__(self, machine, port):
         super().__init__()
         self.machine = machine
-        self.path = "/home/mcstar_dev/Downloads/nfp/neon_force_pushers.x86_64"
+        self.path = "./game_executables/neon_force_pushers.x86_64"
         self.port = port
 
     @property
@@ -420,9 +407,6 @@ class GameRunner(Thread):
         with open(f'log_{self.ident}.log', 'a')  as log:
             print(f"Running {self.path} on port {self.port}")
             self.process = subprocess.Popen([self.path, f"-m={self.port}", "-p=2"], stderr=log, stdout=log)
-            #print(f"Game shutdown on port {self.port}")
-    
-
 
 class Game(AbstractGame):
     """
@@ -469,11 +453,6 @@ class Game(AbstractGame):
         """
         observation = self.get_observation()
         no_op_count = 0
-        #if action is None or not action in l_actions:
-        #    print(f"INVALID ACTION REQUESTED : {action} is not in {l_actions}")
-        #    reward = -100
-        #    done = False
-        #    return observation, reward, done
         if action in self.nfp_game.level_select_actions and not self.frame_worker.is_paused:
             self.nfp_game.level_done()
             done = True
@@ -481,40 +460,20 @@ class Game(AbstractGame):
             self.player = 1 - self.player
             self.nfp_game.set_player(self.player) 
             return observation, 0, done
-        else:    
-            #if self.frame_worker.is_paused:
-            #    self.frame_worker.un_pause()
-            #self.nfp_game.l_actions = None
-            #self.frame_worker.pause()
-            
-            #p_0_actions = self.nfp_game.legal_actions()
-            #self.nfp_game.move([random.choice(p_0_actions)])
-            #self.nfp_game.set_player(0)
-            
-            #self.l_actions = self.nfp_game.legal_actions()
+        else:
             try:
                 self.nfp_game.move([action])
                 self.frame_worker.count_move()
                 done = False
                 reward = float(self.nfp_game.ai_reward)
-                #print(f"player {self.player} reward: {reward}")
-                # reduce the reward by 10 * deaths ^2 
-                #if reward < self.nfp_game.player_score[self.player]:
-                #    self.nfp_game.player_deaths[self.player] += 1
-                #self.nfp_game.player_score[self.player] = reward
-                #reward = reward - (100 * self.nfp_game.player_deaths[self.player])
-                #if action == 0: 
-                #    reward -=1
-                # set next player
-                
-                #print(self.l_actions ,self.nfp_game.level_select_actions)
+
             finally:
                 self.player = 1 - self.player
-                self.nfp_game.set_player(self.player)        
+                self.nfp_game.set_player(self.player)
+
             return observation, reward, done
 
     def get_observation(self):
-        #print('observation...')
         self.last_observation = self.nfp_game.get_state()
         return self.nfp_game.get_state()
 
@@ -539,12 +498,10 @@ class Game(AbstractGame):
         Returns:
             Initial observation of the game.
         """
-        #self.nfp_game.level_done()
         if self.frame_worker.ticks > 0:
             move_ratio = float(self.frame_worker.move_counter)/float(self.frame_worker.ticks)
             print(f"Moves: {self.frame_worker.move_counter}, ticks: {self.frame_worker.ticks} ratio: {round(move_ratio, 2)}")
             self.frame_worker.reset()
-        #self.nfp_game.reset()
         self.player = 0
         return  self.last_observation if not self.last_observation is None else self.get_observation()
 
@@ -555,12 +512,9 @@ class Game(AbstractGame):
         self.frame_worker.stop()
         self.nfp_game.__exit__()
         print('Stopping game.')
-        #message = Commands.FINISH
         
         if os.path.isfile("/tmp/results/game.json"):
             os.remove("/tmp/results/game.json")
-        #self.sock.sendall(message)
-        #self.env.close()
 
     def render(self):
         """
